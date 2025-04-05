@@ -257,3 +257,81 @@ def index(request):
 ```
 - This will display all items stored in the database on the webpage.
 
+# Template
+---
+
+## Django Template System
+---
+
+### 📁 Setting Up Templates
+
+1. Inside your Django app, create a folder named `templates`.
+2. Put all your HTML files inside this `templates` folder so that Django can locate them automatically.
+
+---
+
+### 📦 Template Context
+
+Templates need a **context** — this is the data we get from the database.
+
+Django takes the HTML file and combines it with the context (data from the database) to render the final output.
+
+---
+
+### 💡 How It Works
+
+Templates allow us to combine:
+- Static parts → HTML
+- Dynamic parts → Data from the database  
+And render a single complete web page.
+
+---
+
+### 🧑‍💻 Example View Function
+
+```python
+from django.shortcuts import render
+from .models import Item
+
+def index(request):
+    item_list = Item.objects.all()
+    context = {
+        "item_list": item_list
+    }
+    return render(request, "food/index.html", context)
+```
+
+---
+
+### 📄 `index.html`
+
+```html
+<ul>
+  {% for item in item_list %}
+    <li>{{ item.id }} -- {{ item.item_name }}</li>
+  {% endfor %}
+</ul>
+```
+
+---
+
+### 🛠 Django Template Language (DTL)
+
+Django comes with its own template engine called **DTL** (Django Template Language).
+
+#### Syntax Overview:
+
+- **Variables**: `{{ variable_name }}`
+- **Control structures** (`if`, `for`, etc.): `{% ... %}`
+
+Example:
+
+```html
+{% if item_list %}
+  <!-- Render list -->
+{% else %}
+  <p>No items available.</p>
+{% endif %}
+```
+
+---
