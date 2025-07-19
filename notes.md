@@ -13,23 +13,16 @@ inside that folder, Django creates:
 
 Inside the project folder:  
 
+
 ### **Updated List:**  
 - **`__init__.py`** → Makes the folder a Python package.  
 - **`settings.py`** → Stores project configurations (similar to `package.json`).  
-- **`urls.py`** → Defines URL patterns for handling requests.  
+- **`urls.py`** → Defines URL patterns for handling incoming requests.  
 - **`wsgi.py`** → Used for deploying with WSGI servers (traditional synchronous requests).  
 - **`asgi.py`** → Used for deploying with ASGI servers (supports async features like WebSockets).  
 
+These files are needed when deploying Django with production servers. WSGI/ASGI servers work as a bridge between Python web apps and web servers. The wsgi.py and asgi.py files act as entry points for those servers to communicate with your Django app. Both types of servers can run Django apps, but ASGI supports additional features like WebSockets and async operations
 
-### **When are `wsgi.py` and `asgi.py` used?**  
-- These files are only needed **when deploying** Django to a server.  
-- They act as an entry point for the server to communicate with your Django app.  
-
-Both servers **run Django**, but ASGI supports additional features like WebSockets 
-
-Here's the corrected version of your text:  
-
----
 Django follows the **MVT (Model-View-Template)** architecture:  
 
 - **Model** → Handles database (data structure).  
@@ -228,6 +221,21 @@ This is similar to the second method in Mongoose.
    ```
 3. Access Django Admin Panel (`/admin` in the browser) to add, update, or delete objects.
 
+In Django models actually define DB schema, so when we create schema or edit that schema, basically edit that model, then we have to run `makemigrations` command which actually creates a blueprint, then we run `migrate` to execute the real SQL command and create DB table or apply changes to that DB table.
+
+But when we add data to that table there are 2 options:
+1. **Python shell** - there we instantiate object from model class, add/update and then save it
+2. **Admin panel** - there we add data with UI, but both of these methods use Django's database abstraction API to interact with the DB
+
+**Key difference:**
+- **To create/change table structure (schema)**: We need `makemigrations` (creates blueprint) → `migrate` (executes SQL)
+- **For CRUD operations (data)**: We use UI or shell commands - SQL commands are executed directly through Django's ORM without needing migration steps
+
+So schema changes require the migration process, but data operations happen immediately through Django's database abstraction API.
+
+ When you modify models.py, you must run `makemigrations` then `migrate` because you're changing the database schema structure.
+ Django provides this two-command approach so you can review schema changes before applying them to ensure you're absolutely sure.
+ **CRUD operations are direct**: For regular CRUD operations (create, read, update, delete data), no migrations are needed since you're only manipulating data, not changing the database structure.
 
 in models.py-
 class Item(models.Model):
@@ -237,16 +245,30 @@ class Item(models.Model):
    item_desc= models.CharField(max_length=200)
    item_price= models.IntegerField()
 
-So,inside models.py, we are not calling `__init__` explicitly because we are using `models.Model`, which calls `__init__` behind the scenes on our behalf. The `__str__` method gets called whenever a new instance is displayed on the console, in the Django admin, or when rendered in a template (`{{ item1 }}`). The object from this class will be displayed in those places with the return value from `__str__`. If we remove `__str__`, the object will be rendered as a generic object representation in all those places.
+## why are we not calling __init__ here?
+In Python, __init__ (Constructor) runs when an object is created.
+In Django models, we don’t explicitly define __init__ because:Django models inherit from models.Model, which already has __init__.
+When an object is created, Django calls __init__ internally and handles object creation automatically.
+
+ The `__str__` method gets called whenever a new instance is displayed on the console, in the Django admin, or when rendered in a template (`{{ item1 }}`). The object from this class will be displayed in those places with the return value from `__str__`. If we remove `__str__`, the object will be rendered as a generic object representation in all those places.
 
 The `__str__` method only changes how the object is displayed, but it does not replace the actual object with a string. The new instance from that class, still exists as an object, and you can access all its properties like `pizza.item_price`. 
 The `__str__` method just controls how the object appears when printed or shown in Django admin/templates.
 
-
 ## Querying Data from the Database
-- In Django, data is retrieved using **QuerySets**.
-- A QuerySet is a collection of objects stored in the database.
-- Models have a **default manager** called `objects` that helps in querying.
+
+In Mongoose we can query directly on the model:
+```javascript
+Item.find()
+```
+But in Django we cannot directly query on the model. Every model has a default manager called `objects`, so we query on them:
+
+```python
+Item.objects.all()
+```
+And whatever this returns is called a **QuerySet**, which is a collection of data stored in the database.
+
+ we use the manager to retrieve data, and we get QuerySets as the output.
 
 ### **Example:** Retrieve Data in Views
 ```python
@@ -257,11 +279,36 @@ def index(request):
 ```
 - This will display all items stored in the database on the webpage.
 
+Both Python shell (`python manage.py shell`) and Django admin panel use Django's ORM abstraction API (using the same model classes and methods like `.save()`, `.create()`, `.filter()`) to interact with the database. The only difference is the interface - shell uses code, admin uses a web UI.
+when you view data in Django admin panel, it calls Item.objects.all() (or similar ORM methods) behind the scenes.
+
+# Does python manage.py runserver start the database server along with Django's web server?
+
+**SQLite** → **File-based database**
+* **No server process needed**
+* Just a file on your hard drive (usually `db.sqlite3`)
+* When your Django app needs database access:
+   1. Django opens the SQLite file (`db.sqlite3`)
+   2. Reads/writes data directly to the file
+   3. Closes the file
+
+**If we use Django with MySQL/PostgreSQL/MongoDB locally**, these are server-based databases, so we ourselves have to:
+1. **Run these servers separately**
+2. **Configure Django** to connect to them in `settings.py`
+3. **Then run** `python manage.py runserver`
+4. **Then Django will work** with those database servers
+
+**Important**: `python manage.py runserver` **does NOT start any database server** - it only starts Django's web server. 
+
+- In case of **SQLite3**, we don't need a separate server
+- But even if we need to run a database server, **we have to start that server separately ourselves** - Django will NOT start that server
+- **Django will only talk to the database** after successful connection and after the server is started
+
+So Django's job is just to connect to and communicate with databases - never to start database servers!
+
 # Template
----
 
 ## Django Template System
----
 
 ### 📁 Setting Up Templates
 
@@ -274,7 +321,7 @@ def index(request):
 
 Templates need a **context** — this is the data we get from the database.
 
-Django takes the HTML file and combines it with the context (data from the database) to render the final output.
+Django takes the HTML file and combines it with the context (data from the database) to render the final output. dynamically
 
 ---
 
@@ -300,7 +347,7 @@ def index(request):
     }
     return render(request, "food/index.html", context)
 ```
-
+now index.html can access this context,so inside index.html we can do -->
 ---
 
 ### 📄 `index.html`
@@ -312,9 +359,7 @@ def index(request):
   {% endfor %}
 </ul>
 ```
-
 ---
-
 ### 🛠 Django Template Language (DTL)
 
 Django comes with its own template engine called **DTL** (Django Template Language).
