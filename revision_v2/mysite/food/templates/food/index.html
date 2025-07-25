@@ -1,5 +1,16 @@
-<ul>
-  {% for item in item_list %}
-  <li>{{ item.id }} -- {{item.item_name }}</li>
-  {% endfor %}
-</ul>
+{% extends 'food/base.html' %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Document</title>
+  </head>
+  <body>
+    {% block body %}
+    <ul>
+      {% for item in item_list %}
+      <li>{{ item.id }} -- {{item.item_name }}</li>
+      {% endfor %}
+    </ul>
+    {% endblock %}
+  </body>
+</html>

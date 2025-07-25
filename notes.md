@@ -21,13 +21,16 @@ Inside the project folder:
 - **`wsgi.py`** → Used for deploying with WSGI servers (traditional synchronous requests).  
 - **`asgi.py`** → Used for deploying with ASGI servers (supports async features like WebSockets).  
 
-These files are needed when deploying Django with production servers. WSGI/ASGI servers work as a bridge between Python web apps and web servers. The wsgi.py and asgi.py files act as entry points for those servers to communicate with your Django app. Both types of servers can run Django apps, but ASGI supports additional features like WebSockets and async operations
+These files are needed when deploying Django with production servers. We deploy Django apps on WSGI or ASGI servers. WSGI/ASGI servers handle HTTP requests and convert them into Python function calls that Django understands. The wsgi.py and asgi.py files are the entry points that tell these servers how to load and run your Django application.
 
 Django follows the **MVT (Model-View-Template)** architecture:  
 
 - **Model** → Handles database (data structure).  
 - **View** → Handles logic (processes requests, fetches data).  
 - **Template** → Handles UI (HTML, frontend rendering).  
+ 
+### Why are SSR web apps built with Django a little slower than web apps built with Express or Next.js?
+Django SSR can be slower than Express/Next.js because while Node.js handles HTTP requests directly, Django uses WSGI servers that do conversion work (HTTP ↔ Python function calls) - though this isn't a major bottleneck since it's just a lightweight calling convention. The real performance difference comes from JavaScript's V8 engine being faster than Python's interpreter and Node.js's event loop handling concurrent requests more efficiently than Python's traditional threading model, though Django now supports ASGI for async operations and the performance gap has narrowed with modern Python web servers.
 
 # VIEW
 
@@ -87,6 +90,10 @@ Django follows these steps:
 
 This is how users see `"Hello, User!"` when they enter the URL.
 
+The WSGI server takes the entire HTTP request and calls Django's main application function (defined in wsgi.py) just once with the request data. Then Django does all of those steps internally, and whatever Django returns becomes the return value of that application function call, to the WSGI server. The WSGI server then sends that return value as an HTTP response to the client.
+it's one function call in, one return value out, with Django handling all the internal processing.
+Why it works locally without WSGI/ASGI:
+python manage.py runserver includes a built-in development server that has WSGI functionality built into it. It's doing the same job as Gunicorn but is simpler and only for development.
 
 # MODEL
 ## Django Models and Database Handling
@@ -270,6 +277,8 @@ And whatever this returns is called a **QuerySet**, which is a collection of dat
 
  we use the manager to retrieve data, and we get QuerySets as the output.
 
+ Django models can have multiple managers and you can create custom managers.All managers, inherit from Django's Manager class, so they all have the same default methods like .all(), .filter(), .create(), .get(), etc.so in custom managers we get their own custom methods plus all the default methods.
+
 ### **Example:** Retrieve Data in Views
 ```python
 def index(request):
@@ -281,6 +290,10 @@ def index(request):
 
 Both Python shell (`python manage.py shell`) and Django admin panel use Django's ORM abstraction API (using the same model classes and methods like `.save()`, `.create()`, `.filter()`) to interact with the database. The only difference is the interface - shell uses code, admin uses a web UI.
 when you view data in Django admin panel, it calls Item.objects.all() (or similar ORM methods) behind the scenes.
+
+In both Mongoose and Django, you can create items in two ways:
+1. **Direct method**: `Item.create()` (Mongoose) / `Item.objects.create()` (Django)
+2. **Instance + save**: Create model instance, then call `.save()` method
 
 # Does python manage.py runserver start the database server along with Django's web server?
 
@@ -380,3 +393,21 @@ Example:
 ```
 
 ---
+### static files
+files like css,js,images are static files
+
+how to use them in index.html template?
+{% load static %} this actually allows us to use {% static 'food/style.css' %} tag.
+So when django sees this href="{% static 'food/style.css' %}", here for the static keyword it goes to settings.py STATIC_URL = 'static/', so django replaces this value for the static keyword.
+This becomes: href="/static/food/style.css"> then Django finds the actual file in `your_app/static/food/style.css` and serves it.
+And all of this is handled by django's preinstalled app django.contrib.staticfiles.
+
+how to create a base template for all pages (Ex- navbar)
+Create a .html file inside templates, write down the base template code then at the end or anywhere where you want to keep the rest of the website content, add this:
+    {% block body %}
+    {% endblock %}
+Then go to the pages where you need this template and add this above:
+{% extends 'food/base.html' %} and then wrap the whole page code with {% block body %}
+    {% endblock %}
+
+So now whenever django encounters that extends line it goes to that location, parses that html file, then when django spots `{% block body %} {% endblock %}` it comes to the actual page and renders the rest of the content in place of those tags.
