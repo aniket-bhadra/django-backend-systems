@@ -411,3 +411,47 @@ Then go to the pages where you need this template and add this above:
     {% endblock %}
 
 So now whenever django encounters that extends line it goes to that location, parses that html file, then when django spots `{% block body %} {% endblock %}` it comes to the actual page and renders the rest of the content in place of those tags.
+
+When Django encounters `{% url 'food:create_item' %}` in a template, it identifies the `food` namespace and `create_item` URL name, then looks up the corresponding URL pattern in the food app's urls.py file. During server-side template rendering, Django replaces all template tags with their actual values - converting `{% url 'food:create_item' %}` to something like `/food/add-item/` and `{% static 'css/style.css' %}` to `/static/css/style.css`. The browser receives the final processed HTML with real URLs, never seeing the original template tags.
+
+### forms
+class ItemForm(forms.ModelForm):
+   class Meta:
+      model=Item
+      fields=["item_name", "item_desc", "item_price"]
+
+**Create forms.py inside the app you want to create forms.** Create a form class with a Meta class inside it to tell Django from this model you want to accept these specific fields. The Meta class is a special inner class that tells Django how to build the form - which model to use, which fields to include, etc. Django specifically looks for a class named Meta inside ModelForm classes. now When we create an instance object from the ItemForm class inside view and pass that whole instance to the template, Django creates a form with specified fields for this model and renders basic HTML form fields. When that form is submitted, the same view function gets called again. The `is_valid()` method is called - if true, we can save that form which result all the data is saved to the DB (For create operations, it creates a new record. For update operations, it updates the existing record) and redirect the user to our index page. We can use this same form to create and update items.
+
+def create_item(request):
+   form = ItemForm(request.POST or None)
+
+   if form.is_valid():
+      form.save()
+      return redirect("food:index")
+   
+   return render(request,'food/item-form.html',{'form':form})
+
+<form action="POST">
+   {% csrf_token %}
+   {{form}}
+   <button type="submit">Save</button>
+</form>
+
+**Step-by-Step Process:**
+
+**CREATE:**
+- **First visit**: `form = ItemForm(None)` - empty form instance
+- **User submits**: Same view function runs again, `form = ItemForm(request.POST)` - NEW form instance with user data
+- User doesn't see this filled form because `form.is_valid()` is true → redirected to index
+
+**UPDATE:**
+- **First visit**: `form = ItemForm(None, instance=item)` - form instance pre-filled with existing item data
+- **User submits**: Same view function runs again, `form = ItemForm(request.POST, instance=item)` - NEW form instance with user's modified data
+- User doesn't see this form because `form.is_valid()` is true → redirected to index
+
+Each time the view runs, it creates a fresh form instance. You only see the form when validation fails or on first visit.
+
+In Django templates, when a form is submitted, the same view function that rendered that template gets called again when the submit button is pressed.
+
+When we create or update an item, we call form.save() if form.is_valid() is true. But when we delete an item, we call item.delete() - we call delete on the item object itself. Both perform operations in the database.
+
