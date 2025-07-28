@@ -393,6 +393,8 @@ Example:
 ```
 
 ---
+Django natively cannot work with NoSQL databases - Django ORM only supports SQL databases.templates rendered through views get auth context, which is enabled by default but not literally "every" template.
+Adding an app to INSTALLED_APPS is essential because Django needs to make your app discoverable by Django's system to do anything with it. Whether it's for migrations, template rendering, or any other functionality, your app must be in INSTALLED_APPS to work.
 ### static files
 files like css,js,images are static files
 
@@ -454,4 +456,127 @@ Each time the view runs, it creates a fresh form instance. You only see the form
 In Django templates, when a form is submitted, the same view function that rendered that template gets called again when the submit button is pressed.
 
 When we create or update an item, we call form.save() if form.is_valid() is true. But when we delete an item, we call item.delete() - we call delete on the item object itself. Both perform operations in the database.
+form.is_valid() checks all the fields in the form for validation errors.
+
+### Authentication
+
+Create a new app and add that app to INSTALLED_APPS.
+
+For authentication, we use Django's built-in forms. Django comes with authentication logic and built-in forms.
+
+```python
+def register(request):
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            username = form.cleaned_data.get("username")
+            messages.success(request, f"Welcome {username}, your account is created")
+            return redirect("food:index")
+    else:
+        form = UserCreationForm()
+    return render(request, 'user/register.html', {"form": form})
+```
+UserCreationForm is a built-in form which is by default connected to the built-in User model.
+So this UserCreationForm creates a basic HTML form and also whatever user inputs after submit, it stores to the user table. We don't need to create a users table by ourselves - all of that is handled by Django.
+
+We don't need to run migrate command here because we're not changing the database schema - we're just storing form data to Django's already existing user table. When the request is POST and form is valid, we simply save the inputs to this pre-existing table. Django always comes with a default user table (stored in SQLite3) where admin data is kept, so UserCreationForm doesn't need a model specified since it's already connected to this built-in table.
+
+Django's pre-installed apps ('django.contrib.admin' and 'django.contrib.auth') automatically create a user table in whatever database you connect (MySQL, SQLite3, PostgreSQL) so the admin panel works properly.but it happens through the migration system rather than being completely automatic upon database connection.
+
+If you want to use a custom user model instead, you'd need to create a separate model and configure UserCreationForm to use it - otherwise, form data saves to Django's default user table. This way Django always provides a built-in user model regardless of your database choice.
+
+
+## How to add an additional field on built-in form?
+
+1. Create your own form in forms.py
+2. Inherit the built-in form (UserCreationForm)
+3. Add your own fields
+4. Then define the Meta class to tell Django what model to choose and what fields we want for that model
+
+Now we can create an instance from this form and render that instance into the template. Now those additional fields will be there in that form, but if those fields don't exist on the model then input on those fields will do nothing.
+
+```python
+class RegisterForm(UserCreationForm):
+    # add custom fields
+    email = forms.EmailField()
+    phone = forms.CharField(max_length=15)
+
+    class Meta:
+        model = User
+        fields = ["username", "email", "password1", "password2", "phone"]
+```
+
+## How to add additional fields on built-in model (like User)?
+
+1. Create a model class
+2. Create a field which is linked with that existing model
+3. Create the additional fields
+4. Run `makemigrations`
+5. Run `migrate`
+6. Add that model to admin.py to see in admin panel
+7. Done
+
+```python
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    phone = models.CharField(max_length=15)
+    bio = models.TextField(max_length=500, blank=True)
+    location = models.CharField(max_length=30, blank=True)
+```
+
+This way we create a new model that extends the User model, so another table will be created which is separate from but connected to the user table and has those additional fields that I provided.
+
+For login and logout we use Django's built-in views.
+
+So to use built-in views we need to attach them with URL in root project urls.py and setup templates to function properly. And since these views pass `form` as context, so inside the template which is linking with these views can also accept `form`.
+
+```python
+path("login/", authentication_views.LoginView.as_view(template_name="user/login.html"), name="login"),
+path("logout/", authentication_views.LogoutView.as_view(template_name="user/logout.html"), name="logout"),
+```
+
+## How does Django handle login/logout? Where does it store the login state - in RAM or in DB? How does it determine if the request is coming from a logged-in user or not?
+
+Django uses **session-based authentication** by default. Here's how it works:
+
+Whenever a user successfully logs in, Django creates a session ID and stores that session ID in the browser cookie, and stores session data in the database session table not in RAM. On each request, Django checks the session ID from the cookie against the session from db - if valid, then Django provides request.user to all view functions and also provides the user details as context to templates rendered through views.
+Django checks session ID cookie against the database session table for every request once the session middleware is enabled (which it is by default). This happens regardless of whether your app has login features or not - Django's session middleware runs on every request 
+
+ Django can manage login state with sessions regardless of whether you use the built-in User model or a custom user model. As long as you set AUTH_USER_MODEL in settings.py to point to your custom model, Django's session-based authentication works exactly the same way.
+
+## Template Context and Custom User Models
+
+Every template Django sends some built-in context. Like every template Django sends `user` - we can see logged-in user details by just accessing `{{user}}` on any template rendered through views.
+
+But the question is: if we store the login user into my custom table instead of Django's built-in user table, in that case can Django still send the proper user details to every template? If yes, then how?
+
+**Answer:** Yes, Django will still send the proper user details to every template even with a custom user model. Here's how:
+
+- When you set `AUTH_USER_MODEL` in settings.py to point to your custom user model, Django automatically uses that model for authentication
+- Django's authentication middleware will load your custom user model instance
+- The `{{user}}` context variable in templates will contain your custom user model instance with all its fields and methods
+- Everything works the same way - Django just uses your custom model instead of the default User model
+
+So whether you use Django's built-in User model or your custom user model, the `{{user}}` template context will always work properly.
+
+So one thing we can add additional fields to already existing model or table which is user, we do that by creating separate model and we link with that foreign key field and then add our additional fields in this model, but another thing we can do is we can create separately different model and configure that model in settings.py and make django work its authentication session middleware everything using that model instead of that default user model.
+
+### How to restrict a particular page?
+
+Using decorator:
+
+```python
+@login_required
+def profile(request):
+    return render(request, 'user/profile.html')
+```
+
+Now this view can & that profile.html page will only be rendered if user is logged in.
+
+Then in settings.py add:
+```python
+LOGIN_URL = "login"
+```
+So if user is not logged in and tries to access that template then he is automatically redirected to the URL which is named as "login".
 
