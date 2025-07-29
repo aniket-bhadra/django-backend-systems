@@ -580,3 +580,17 @@ LOGIN_URL = "login"
 ```
 So if user is not logged in and tries to access that template then he is automatically redirected to the URL which is named as "login".
 
+### django signals
+
+create signals.py
+import the proper signal--> save,delete,..
+import recevier to receve this signals
+
+#receving signals if sender = user then fire that fn
+@receiver(post_save,sender=User)
+# sender- which sends the signal
+# instance - instance that is being saved
+# created - holds boolean value,which tell if the user created or not
+def build_profile(sender,instance,created,**kwargs):
+   if created:
+      Profile.objects.create(user=instance)

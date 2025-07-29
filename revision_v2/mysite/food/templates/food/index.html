@@ -8,7 +8,7 @@
     {% block body %}
     <ul>
       {% for item in item_list %}
-      <li>{{ item.id }} -- {{item.item_name }}</li>
+      <li>{{ item.id }} -- {{item.item_name }} -- {{ item.user_name }}</li>
       {% endfor %}
       {{user}}
     </ul>
