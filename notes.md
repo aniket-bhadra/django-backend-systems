@@ -581,16 +581,95 @@ LOGIN_URL = "login"
 So if user is not logged in and tries to access that template then he is automatically redirected to the URL which is named as "login".
 
 ### django signals
+Create signals.py
+Import the proper signals --> post_save, post_delete, etc.
+Import receiver to receive these signals
 
-create signals.py
-import the proper signal--> save,delete,..
-import recevier to receve this signals
-
-#receving signals if sender = user then fire that fn
+```python
+#receiving signals - if sender = User then fire this function
 @receiver(post_save,sender=User)
-# sender- which sends the signal
-# instance - instance that is being saved
-# created - holds boolean value,which tell if the user created or not
+# sender - the model class that sent the signal
+# instance - the actual instance that was saved
+# created - holds boolean value, which tells if the instance was created or updated
 def build_profile(sender,instance,created,**kwargs):
    if created:
       Profile.objects.create(user=instance)
+```
+
+The `created` parameter is specific only to `post_save` and `pre_save` signals - we can use it when post is created or updated or about to be created or about to be updated, but if we listen to `post_delete` signals in that case we don't need to check anything because when post gets deleted only after that this receiver function gets called so in `post_delete` case we can directly perform any action.
+
+add this to app.py of that app
+    def ready(self):
+        import users.signals
+
+This imports the signals module when the Django app starts up, ensuring your signal handlers are registered and active.
+
+Django **always emits signals by default** - like `post_save`, `pre_delete`, etc. These signals are fired automatically whenever those events happen, whether you import signals or not.
+
+The `import users.signals` in `ready()` is only needed to **register your receiver functions**. 
+
+Without the import:
+- Django still emits the `post_save` signal when a User is saved
+- But your `@receiver` function isn't registered, so it won't catch/hear the signal
+
+With the import:
+- Django emits the `post_save` signal (as always)
+- Your receiver function is now registered and listening, so it gets triggered
+
+So signals are always flying around - the import just makes sure your receivers are there to catch them.
+
+Behind the scenes django signals system uses pub sub architecture where when certain events happen (like saving a model, user login, etc.), Django automatically "publishes" signals always. You can "subscribe" to these signals by connecting handler functions using decorators like `@receiver` or `Signal.connect()` so that we can catch these always emitting signals and do what's necessary after the action.
+
+
+### class base views vs fn base views
+Django provides all types of class based views like detail, list, etc.
+Function based and class based both work in the same way:
+url->view->template
+
+So create class and inherit the proper view like ListView, DetailView
+then provide model, template, and context - done! Django automatically extracts the list and passes the context with this name (by default it passes different name, to change that we provide context_object_name)
+
+```python
+class IndexClassView(ListView):
+   model = Item
+   template_name = "food/index.html"
+   context_object_name = "item_list"
+```
+
+Then attach this view with url and call as_view() - done!
+```python
+path('', views.IndexClassView.as_view(), name="index"),
+```
+
+This function view does the same purpose:
+```python
+def index(request):
+   item_list = Item.objects.all()
+   context = {
+      "item_list": item_list,
+   }
+   return render(request, 'food/index.html', context)
+```
+
+**Function-based views**: Use for simple, straightforward logic or when you need full control over the request handling.
+
+**Class-based views**: Use for complex views with repetitive patterns (CRUD operations) or when you want to leverage inheritance and built-in functionality.
+
+
+### user association with food 
+```python
+def create_item(request):
+   form = ItemForm(request.POST or None)
+
+   if form.is_valid():
+      item = form.save(commit=False)
+      item.user_name = request.user
+      item.save()
+      return redirect("food:index")
+   
+   return render(request,'food/item-form.html',{'form':form})
+```
+`form.save(commit=False)` returns a **model instance** (unsaved object) with all the user inputted form data, but it doesn't save it to the database yet.
+
+So you get the actual Item object with all fields filled from the form, allowing you to modify it before saving.
+
