@@ -761,3 +761,14 @@ So if there is 1k movies, it never fetches 1k movies to find one. It's very effi
 This is one of the key advantages of using Django's ORM - it's lazy and only executes database queries when actually needed, and it's smart enough to construct the right query for the specific operation.
 
 Django works **declaratively** - you define WHAT you want (models, serializers, viewsets) and Django figures out HOW to do it for you.
+### Mongoose vs Django Serialization
+
+In Mongoose and Express, when we get data from MongoDB, the process appears straightforward because MongoDB stores data in BSON format and Mongoose converts this BSON data to Mongoose document objects. These Mongoose document objects are complex JavaScript objects that contain the database data plus Mongoose-specific properties and methods. 
+
+However, when you call `res.json(mongoose_document)`, here's what happens step-by-step: Express's `res.json()` method internally calls `JSON.stringify(mongoose_document)`. `JSON.stringify()` automatically checks if the object has a `.toJSON()` method - this is built-in JavaScript behavior. Since Mongoose documents have a `.toJSON()` method, `JSON.stringify()` calls `mongoose_document.toJSON()`. The `.toJSON()` method returns a plain JavaScript object (without Mongoose internal properties/methods). `JSON.stringify()` then converts this plain object to a JSON string, and Express sends the JSON string as HTTP response.
+
+If no `.toJSON()` method existed, `JSON.stringify()` would serialize all enumerable properties directly, potentially including Mongoose internal properties and methods, making the JSON "dirty" with framework-specific data. This is why Mongoose provides `.toJSON()` - to control what gets serialized and return clean data. So there is a serialization layer, but it's built-in and automatic.
+
+In contrast, Django REST Framework requires explicit serialization because Django model instances are complex Python objects with Django-specific methods and properties. Therefore, we need serializers to first convert Django objects to simple Python data types, which can then be converted to JSON.
+
+The key difference is that Mongoose handles serialization automatically through built-in `.toJSON()` methods on document objects that convert complex Mongoose documents to plain JavaScript objects that are easily JSON-convertible, while Django requires manual serialization through explicit serializer classes that is then automatically converted to JSON by REST Framework.
