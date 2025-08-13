@@ -728,3 +728,23 @@ class MovieSerializer(serializers.ModelSerializer):
 
 Django REST Framework provides a built-in Browsable API (GUI) for testing GET, POST, PUT, PATCH, DELETE requests.
 
+
+Inside view we create a new class inheriting viewsets.ModelViewSet. Inside queryset variable we provide a query template (not actual data) by defining what data to work with (MovieData.objects.all()), then provide serializer_class. Django automatically creates controller for all CRUD operations. router.register('movies', MovieViewSet) + path("", include(router.urls)) makes Django create URLs for those CRUD controllers and attach them with main URLs.
+
+**When user hits endpoints, Django calls corresponding ViewSet methods:**
+
+- **GET /movies/** → `MovieViewSet.list()` → fetches all movies, serializes, returns JSON array
+
+- **POST /movies/** → `MovieViewSet.create()` → validates, creates new movie, serializes, returns JSON object
+
+- **GET /movies/1/** → `MovieViewSet.retrieve()` → fetches movie id=1, serializes, returns JSON object
+
+- **PUT /movies/1/** → `MovieViewSet.update()` → validates, updates movie id=1, serializes, returns JSON object
+
+- **PATCH /movies/1/** → `MovieViewSet.partial_update()` → validates, partially updates movie id=1, serializes, returns JSON object
+
+- **DELETE /movies/1/** → `MovieViewSet.destroy()` → deletes movie id=1, returns 204 No Content
+
+**Each method automatically:** executes queryset when needed, uses serializer for Python objects ↔ (simple data type then auto json conversion) JSON conversion, handles HTTP response formatting.
+
+All methods are built into `ModelViewSet` - you don't write them, Django provides automatically.
