@@ -673,3 +673,58 @@ def create_item(request):
 
 So you get the actual Item object with all fields filled from the form, allowing you to modify it before saving.
 
+### REST APIs
+
+To build REST APIs in Django, we use the Django REST Framework.
+
+**Steps to create Django REST API:**
+1. Create project and app
+2. Add app and 'rest_framework' to INSTALLED_APPS
+3. Create model for schema
+4. Run makemigrations & migrate
+5. Add data to DB
+6. Now to extract the data from the DB, we get queryset or model instance format (these are complex Python objects), so we need serialization so that we can convert these complex Python objects to simple Python datatypes (like strings, integers, lists, dictionaries), then that can easily be converted to JSON or XML automatically by Django REST Framework.
+
+Complex Python Object → Serializer → Simple Python Data Types → Django REST Framework → JSON
+
+Serializers DON'T directly convert to JSON. They convert complex Python objects to simple Python data types, then Django REST Framework handles the JSON conversion automatically.
+
+The final output HTML is rendered inside the server and a complete HTML page is generated then that is sent to browsers. So since that HTML is rendered inside the server before going to the browser, Django's template engine knows how to deal with that complex data and convert it to displayable HTML format. But in case of APIs we have to send the raw data directly to the client, Django template engine doesn't get a chance to come in between like SSR and handle the data conversion, that is why here we have to do it ourselves manually - first serialization then REST Framework converts that to JSON format.
+
+- We need to send data over HTTP as JSON/XML (not server rendered HTML)
+
+**Example:**
+```python
+# Model instance (complex Python object)
+movie = MovieData.objects.get(id=1)
+# This is: <MovieData: Inception> - a complex Python object
+# Step 1: Serializer converts complex Python object to simple Python data types
+serializer = MovieSerializer(movie)
+serializer.data
+# Output: {'id': 1, 'name': 'Inception', 'duration': 148, 'rating': 8.8}
+# This is now simple Python data types (dict with strings, integers)
+# Step 2: Django REST Framework converts simple Python data types to JSON
+# Final JSON output: {"id": 1, "name": "Inception", "duration": 148, "rating": 8.8}
+```
+
+**To serialize a model:**
+Create serializers.py
+```python
+class MovieSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MovieData
+        fields = ["id", "name", "duration", "rating"]
+```
+
+**Architecture comparison:**
+- **Normal Django (SSR):** models → views → templates → urls  
+- **REST API:** models → serializers → views → urls
+
+**Why serializers needed in REST APIs but not SSR?**
+
+**SSR:** Django's template system works directly with Python objects. Templates render HTML on server using `{{ movie.name }}`.
+
+**REST APIs:** JSON/XML don't understand complex Python objects. Serializers convert complex objects to simple data types, then DRF converts to JSON/XML.
+
+Django REST Framework provides a built-in Browsable API (GUI) for testing GET, POST, PUT, PATCH, DELETE requests.
+
