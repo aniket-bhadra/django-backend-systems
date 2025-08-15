@@ -685,10 +685,11 @@ To build REST APIs in Django, we use the Django REST Framework.
 5. Add data to DB
 6. Now to extract the data from the DB, we get queryset or model instance format (these are complex Python objects), so we need serialization so that we can convert these complex Python objects to simple Python datatypes (like strings, integers, lists, dictionaries), then that can easily be converted to JSON or XML automatically by Django REST Framework.
 
-Complex Python Object → Serializer → Simple Python Data Types → Django REST Framework → JSON
+DB → Complex Python Object → Serializer → Simple Python Data Types → Django REST Framework → JSON
 
 Serializers DON'T directly convert to JSON. They convert complex Python objects to simple Python data types, then Django REST Framework handles the JSON conversion automatically.
 
+ why in ssr we dont need serializer?
 The final output HTML is rendered inside the server and a complete HTML page is generated then that is sent to browsers. So since that HTML is rendered inside the server before going to the browser, Django's template engine knows how to deal with that complex data and convert it to displayable HTML format. But in case of APIs we have to send the raw data directly to the client, Django template engine doesn't get a chance to come in between like SSR and handle the data conversion, that is why here we have to do it ourselves manually - first serialization then REST Framework converts that to JSON format.
 
 - We need to send data over HTTP as JSON/XML (not server rendered HTML)
@@ -728,7 +729,12 @@ class MovieSerializer(serializers.ModelSerializer):
 
 Django REST Framework provides a built-in Browsable API (GUI) for testing GET, POST, PUT, PATCH, DELETE requests.
 
-
+```python
+class MovieViewSet(viewsets.ModelViewSet):
+   queryset = MovieData.objects.all()
+   serializer_class= MovieSerializer
+```
+so,
 Inside view we create a new class inheriting viewsets.ModelViewSet. Inside queryset variable we provide a query template (not actual data) by defining what data to work with (MovieData.objects.all()), then provide serializer_class. Django automatically creates controller for all CRUD operations. router.register('movies', MovieViewSet) + path("", include(router.urls)) makes Django create URLs for those CRUD controllers and attach them with main URLs.
 
 **When user hits endpoints, Django calls corresponding ViewSet methods:**
@@ -794,7 +800,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 ]
 ```
-
+When using function-based API views, you don't need router at all. You just attach those views with URLs the way you do in SSR using path().Router is only for ViewSets that need automatic CRUD URL generation. 
 
 @api_view = Makes functions into API views
 @action = Adds custom endpoints to existing ViewSets
@@ -829,6 +835,13 @@ Then inside that class, whatever @action methods we define, the URL automaticall
 **In @action decorator:**
 Whatever HTTP methods we provide (`methods=['get']`), that method will only invoke on those HTTP methods. `detail=False` means this method works on collection of all movies, `detail=True` means this method will work on specific movie.
 
+When we provide detail=True, that function below will only execute if the user requested URL has some sort of number like /movies/1/rate_movie/. Only then that function will execute. Just like the number of methods we provide, that function will only execute if those methods are requested. Same way, if detail=True, then django checks if there is a number because that number is later extracted and mapped as pk parameter and searched in the database. So if detail=True, it does check that user requested URL has a number - if not, then it won't invoke. If detail=False, then if there is a number it won't invoke, if no number then it invokes.
+
+detail=True → Only executes for URLs with numbers like /movies/1/rate_movie/
+detail=False → Only executes for URLs without numbers like /movies/top_rated/
+
+Django automatically checks URL patterns and extracts the number as pk parameter
+
 but then How does it know which movie (1, 3, 4) is being requested?
 
 **Answer:** Django extracts it from the URL! When you hit `/movies/3/rate_movie/`, Django's URL router captures the `3` and passes it as the `pk` parameter to that method,we can acess that `def rate_movie(self, request, pk)`, however `self.get_object()` uses that `pk` to automatically fetch `MovieData.objects.get(pk=3)`. It's all automatic URL pattern matching!
@@ -841,7 +854,7 @@ ViewSets give you tons of functionality for free - CRUD, pagination, filtering, 
 router.register('action', ActionView, basename='action')
 ```
 
-While adding URLs, add basename when needed. The 1st argument here is for the web URL, the 3rd is basename.
+While adding URLs with router, add basename when needed. The 1st argument here is for the web URL, the 3rd is basename.
 
 So the URL path and basename serve different purposes - one for the actual web URLs, one for Django's internal routing system.
 
