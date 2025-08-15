@@ -7,3 +7,7 @@ from .models import MovieData
 class MovieViewSet(viewsets.ModelViewSet):
    queryset = MovieData.objects.all()
    serializer_class= MovieSerializer
+
+class ActionView(viewsets.ModelViewSet):
+   queryset= MovieData.objects.filter(typ="fiction")
+   serializer_class= MovieSerializer

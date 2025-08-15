@@ -772,3 +772,88 @@ If no `.toJSON()` method existed, `JSON.stringify()` would serialize all enumera
 In contrast, Django REST Framework requires explicit serialization because Django model instances are complex Python objects with Django-specific methods and properties. Therefore, we need serializers to first convert Django objects to simple Python data types, which can then be converted to JSON.
 
 The key difference is that Mongoose handles serialization automatically through built-in `.toJSON()` methods on document objects that convert complex Mongoose documents to plain JavaScript objects that are easily JSON-convertible, while Django requires manual serialization through explicit serializer classes that is then automatically converted to JSON by REST Framework.
+
+### how to add custom endpoints to the api?
+
+fn based api view
+
+```python
+
+@api_view(['GET'])  # Step 1: Convert function to API view
+def movie_list(request):
+    movies = MovieData.objects.all()
+    serializer = MovieSerializer(movies, many=True)
+    return Response(serializer.data)
+
+# urls.py
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('api/movies/', views.movie_list, name='movie_list'),  # Step 2: Manual URL mapping
+    path('admin/', admin.site.urls),
+]
+```
+
+
+@api_view = Makes functions into API views
+@action = Adds custom endpoints to existing ViewSets
+Class-based ViewSets don't need decorators for basic CRUD (that's automatic), but they DO use @action decorator when you want to add custom endpoints beyond the standard CRUD operations.
+
+class based
+```python
+class MovieViewSet(viewsets.ModelViewSet):
+    # Built-in CRUD methods automatically
+    queryset = MovieData.objects.all()
+    serializer_class = MovieSerializer
+    
+    @action(detail=False, methods=['get'])  # Custom endpoint for collection
+    def top_rated(self, request):
+        # Custom endpoint: /movies/top_rated/
+        movies = self.queryset.filter(rating__gte=8.0)
+        serializer = self.get_serializer(movies, many=True)
+        return Response(serializer.data)
+```
+
+
+So `self` is that ViewSet instance which has a couple of methods that actually help us modify the base query and get what we want. Like `get_object()` automatically gets the current movie, `queryset` gives us the queryset we defined, `get_serializer()` - lots of methods we get for free.
+
+And whatever **custom methods with @action decorator** we define inside that class, that method name becomes the URL. If this is the URL for that class:
+```python
+router.register('movies', MovieViewSet)
+```
+Then inside that class, whatever @action methods we define, the URL automatically connects to that method.
+
+**Example:** `/movies/top_rated/` → automatically calls `top_rated` method inside MovieViewSet class.
+
+**In @action decorator:**
+Whatever HTTP methods we provide (`methods=['get']`), that method will only invoke on those HTTP methods. `detail=False` means this method works on collection of all movies, `detail=True` means this method will work on specific movie.
+
+but then How does it know which movie (1, 3, 4) is being requested?
+
+**Answer:** Django extracts it from the URL! When you hit `/movies/3/rate_movie/`, Django's URL router captures the `3` and passes it as the `pk` parameter to that method,we can acess that `def rate_movie(self, request, pk)`, however `self.get_object()` uses that `pk` to automatically fetch `MovieData.objects.get(pk=3)`. It's all automatic URL pattern matching!
+
+ViewSets give you tons of functionality for free - CRUD, pagination, filtering, permissions, etc. You just configure what you want, no extra coding needed for basic features. And on top of this, if we want custom endpoints, we can design those also using @action decorators.
+
+#### urls.py in apis
+
+```python
+router.register('action', ActionView, basename='action')
+```
+
+While adding URLs, add basename when needed. The 1st argument here is for the web URL, the 3rd is basename.
+
+So the URL path and basename serve different purposes - one for the actual web URLs, one for Django's internal routing system.
+
+If we don't provide basename, then Django takes the model name as basename. So if there are multiple URLs associated with the same model, then Django throws an error since there are multiple URLs with the same basename. That is why it's important to provide basename for Django's internal routing system and lookups.
+
+So in Django REST Framework's router, there are 2 types:
+
+SimpleRouter: Clean API without extra features
+DefaultRouter: SimpleRouter + extra features (root API page + format suffixes)
+
+# Django Views Summary
+
+**REST APIs:** Use class-based ViewSets for automatic CRUD operations, pagination, and minimal boilerplate.
+
+**SSR Applications:** Choose based on complexity - function-based views for simple pages, class-based views for complex logic requiring inheritance/mixins.
