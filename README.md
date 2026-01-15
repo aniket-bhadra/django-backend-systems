@@ -1,4 +1,4 @@
-
+## setup
 ```bash
 django-admin startproject folderName
 
